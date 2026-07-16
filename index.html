@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atrapa y Esquiva</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --page: #07101d;
+      --panel: #111e31;
+      --panel-light: #192a42;
+      --border: #36506f;
+      --text: #f5f8fc;
+      --muted: #bdc9d8;
+      --accent: #55a7ff;
+      --accent-hover: #7bbcff;
+      --good: #48d477;
+      --bad: #f05c61;
+      --focus: #ffd166;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      min-width: 0;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      padding: clamp(8px, 1.5vh, 16px);
+      background: radial-gradient(circle at top, #14243a 0, var(--page) 62%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.4;
+    }
+
+    button, input { font: inherit; }
+
+    button {
+      min-height: 48px;
+      border: 2px solid transparent;
+      border-radius: 10px;
+      padding: 10px 18px;
+      background: var(--accent);
+      color: #061322;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background-color 120ms ease, transform 120ms ease;
+    }
+
+    button:hover { background: var(--accent-hover); }
+    button:active { transform: translateY(1px); }
+    button:focus-visible, .choice:has(input:focus-visible) {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    button.secondary {
+      border-color: var(--border);
+      background: #223750;
+      color: var(--text);
+    }
+
+    button.secondary:hover { background: #2d4868; }
+
+    .app {
+      width: min(100%, 1120px);
+      height: 100%;
+      max-height: 720px;
+      min-height: 0;
+    }
+
+    .screen {
+      display: none;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .screen.active { display: grid; }
+
+    .card {
+      width: min(100%, 680px);
+      max-height: 100%;
+      align-self: center;
+      justify-self: center;
+      overflow: auto;
+      padding: clamp(20px, 4vh, 36px);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: rgba(17, 30, 49, 0.97);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      text-align: center;
+    }
+
+    h1, h2, p { margin-top: 0; }
+    h1 { margin-bottom: 14px; font-size: clamp(2rem, 6vh, 3.25rem); line-height: 1.05; }
+    h2 { margin-bottom: 12px; font-size: clamp(1.7rem, 4vh, 2.35rem); }
+    .lead { max-width: 560px; margin: 0 auto 26px; color: var(--muted); font-size: clamp(1rem, 2.6vh, 1.25rem); }
+
+    .button-stack {
+      display: grid;
+      gap: 12px;
+      width: min(100%, 340px);
+      margin: 0 auto;
+    }
+
+    .settings-card { width: min(100%, 820px); text-align: left; }
+    .settings-card h2 { text-align: center; }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 18px;
+      margin: 18px 0 22px;
+    }
+
+    fieldset {
+      min-width: 0;
+      margin: 0;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    legend { padding: 0 7px; font-weight: 800; font-size: 1.05rem; }
+    .choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+    .choice {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 46px;
+      padding: 7px 5px;
+      border: 2px solid transparent;
+      border-radius: 9px;
+      background: #223750;
+      color: var(--muted);
+      text-align: center;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .choice input { position: absolute; opacity: 0; pointer-events: none; }
+    .choice:has(input:checked) { border-color: var(--accent); background: #163e66; color: #fff; }
+    .settings-actions { display: flex; justify-content: center; gap: 12px; }
+
+    #game-screen.active {
+      grid-template-columns: 250px minmax(0, 540px);
+      justify-content: center;
+      gap: clamp(10px, 1.5vw, 18px);
+    }
+
+    .hud {
+      height: 100%;
+      min-height: 0;
+      overflow: auto;
+      padding: clamp(12px, 2vh, 18px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: rgba(17, 30, 49, 0.98);
+    }
+
+    .hud h2 { margin-bottom: 12px; font-size: clamp(1.35rem, 3vh, 1.8rem); }
+    .stats { display: grid; gap: 7px; margin-bottom: 12px; }
+    .stat {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 9px;
+      border-radius: 8px;
+      background: var(--panel-light);
+      color: var(--muted);
+    }
+
+    .stat strong { color: #fff; font-size: 1.12rem; }
+    .hud-buttons { display: grid; gap: 8px; }
+    .hud-buttons button { min-height: 43px; padding: 8px 10px; }
+    .controls-note { margin: 12px 0 0; color: var(--muted); font-size: 0.92rem; }
+
+    .canvas-wrap {
+      position: relative;
+      align-self: center;
+      justify-self: center;
+      height: min(100%, 720px);
+      aspect-ratio: 3 / 4;
+      max-width: 100%;
+      overflow: hidden;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      background: #050b14;
+      box-shadow: 0 14px 45px rgba(0, 0, 0, 0.4);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    .pause-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      place-items: center;
+      background: rgba(2, 7, 14, 0.65);
+      color: #fff;
+      font-size: clamp(2rem, 8vh, 4rem);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      pointer-events: none;
+    }
+
+    .pause-overlay.visible { display: grid; }
+    .result-number { margin: 4px 0 20px; color: var(--accent); font-size: clamp(2.2rem, 7vh, 4rem); font-weight: 900; }
+    .result-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; margin: 0 auto 20px; max-width: 480px; text-align: left; }
+    .result-grid div { padding: 10px 12px; border-radius: 9px; background: var(--panel-light); }
+    .result-grid span { display: block; color: var(--muted); font-size: 0.9rem; }
+    #final-message { margin-bottom: 22px; font-size: 1.15rem; }
+
+    @media (max-width: 820px) {
+      #game-screen.active { grid-template-columns: minmax(185px, 220px) minmax(0, 540px); }
+      .settings-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-height: 650px) {
+      .card { padding: 16px 22px; }
+      .settings-grid { gap: 8px 14px; margin: 8px 0 12px; }
+      fieldset { padding: 7px 10px 9px; }
+      .choice { min-height: 38px; padding: 4px; }
+      .lead { margin-bottom: 16px; }
+      .hud { padding: 10px; }
+      .hud h2 { margin-bottom: 7px; }
+      .stats { gap: 4px; margin-bottom: 7px; }
+      .stat { padding: 5px 7px; }
+      .hud-buttons { gap: 5px; }
+      .hud-buttons button { min-height: 36px; padding: 5px 8px; }
+      .controls-note { margin-top: 7px; font-size: 0.82rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" id="app">
+    <section class="screen active" id="start-screen" aria-labelledby="game-title">
+      <div class="card">
+        <h1 id="game-title">Atrapa y Esquiva</h1>
+        <p class="lead">Usá las flechas izquierda y derecha para atrapar los círculos verdes y evitar los rojos.</p>
+        <div class="button-stack">
+          <button id="play-button" type="button">Jugar</button>
+          <button id="settings-button" class="secondary" type="button">Configuración</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="settings-screen" aria-labelledby="settings-title">
+      <div class="card settings-card">
+        <h2 id="settings-title">Configuración</h2>
+        <form id="settings-form">
+          <div class="settings-grid">
+            <fieldset>
+              <legend>Duración</legend>
+              <div class="choices">
+                <label class="choice"><input type="radio" name="duration" value="60" checked>1 minuto</label>
+                <label class="choice"><input type="radio" name="duration" value="180">3 minutos</label>
+                <label class="choice"><input type="radio" name="duration" value="300">5 minutos</label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Objetivo</legend>
+              <div class="choices">
+                <label class="choice"><input type="radio" name="target" value="10">10 verdes</label>
+                <label class="choice"><input type="radio" name="target" value="20" checked>20 verdes</label>
+                <label class="choice"><input type="radio" name="target" value="30">30 verdes</label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Dificultad</legend>
+              <div class="choices">
+                <label class="choice"><input type="radio" name="difficulty" value="easy">Fácil</label>
+                <label class="choice"><input type="radio" name="difficulty" value="normal" checked>Normal</label>
+                <label class="choice"><input type="radio" name="difficulty" value="hard">Difícil</label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Tamaño del jugador</legend>
+              <div class="choices">
+                <label class="choice"><input type="radio" name="playerSize" value="large">Grande</label>
+                <label class="choice"><input type="radio" name="playerSize" value="normal" checked>Normal</label>
+                <label class="choice"><input type="radio" name="playerSize" value="small">Chico</label>
+              </div>
+            </fieldset>
+          </div>
+          <div class="settings-actions">
+            <button type="submit">Guardar y volver</button>
+            <button id="reset-settings-button" class="secondary" type="button">Restaurar valores</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="screen" id="game-screen" aria-label="Partida">
+      <aside class="hud" aria-label="Información de la partida">
+        <h2>Atrapa y Esquiva</h2>
+        <div class="stats">
+          <div class="stat"><span>Verdes</span><strong id="good-count">0</strong></div>
+          <div class="stat"><span>Objetivo</span><strong id="target-count">20</strong></div>
+          <div class="stat"><span>Rojos</span><strong id="bad-count">0</strong></div>
+          <div class="stat"><span>Tiempo</span><strong id="time-left">1:00</strong></div>
+          <div class="stat"><span>Dificultad</span><strong id="difficulty-label">Normal</strong></div>
+        </div>
+        <div class="hud-buttons">
+          <button id="pause-button" type="button">Pausa</button>
+          <button id="restart-button" class="secondary" type="button">Reiniciar</button>
+          <button id="menu-button" class="secondary" type="button">Volver al menú</button>
+        </div>
+        <p class="controls-note">Mové el rectángulo con ← y →.<br>Espacio: pausa.</p>
+      </aside>
+      <div class="canvas-wrap" id="game-area">
+        <canvas id="game-canvas" width="540" height="720" aria-label="Área de juego"></canvas>
+        <div class="pause-overlay" id="pause-overlay" aria-hidden="true">PAUSA</div>
+      </div>
+    </section>
+
+    <section class="screen" id="final-screen" aria-labelledby="final-title">
+      <div class="card">
+        <h2 id="final-title">Partida terminada</h2>
+        <div class="result-number" id="final-result">0 / 20</div>
+        <div class="result-grid">
+          <div><span>Verdes atrapados</span><strong id="final-good">0</strong></div>
+          <div><span>Rojos atrapados</span><strong id="final-bad">0</strong></div>
+          <div><span>Objetivo</span><strong id="final-target">20</strong></div>
+          <div><span>Tiempo jugado</span><strong id="final-time">0:00</strong></div>
+        </div>
+        <p id="final-message">¡Buen intento!</p>
+        <div class="button-stack">
+          <button id="play-again-button" type="button">Jugar otra vez</button>
+          <button id="final-menu-button" class="secondary" type="button">Volver al menú</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    'use strict';
+
+    // El canvas siempre trabaja en este sistema lógico. CSS solo cambia su tamaño visual.
+    const GAME_WIDTH = 540;
+    const GAME_HEIGHT = 720;
+    const PLAYER_SPEED = 420;
+    const MAX_DELTA_TIME = 0.05;
+
+    const COLORS = {
+      background: '#050b14',
+      grid: 'rgba(106, 143, 184, 0.10)',
+      player: '#4b9dff',
+      playerEdge: '#b7dcff',
+      good: '#48d477',
+      goodEdge: '#b7f4c9',
+      bad: '#f05c61',
+      badEdge: '#ffc0c2'
+    };
+
+    const difficultySettings = {
+      easy: { label: 'Fácil', spawnInterval: 1.15, minSpeed: 120, maxSpeed: 190, badChance: 0.25 },
+      normal: { label: 'Normal', spawnInterval: 0.90, minSpeed: 160, maxSpeed: 250, badChance: 0.35 },
+      hard: { label: 'Difícil', spawnInterval: 0.68, minSpeed: 210, maxSpeed: 330, badChance: 0.45 }
+    };
+
+    const playerSizes = {
+      large: { width: 120, height: 28 },
+      normal: { width: 90, height: 26 },
+      small: { width: 65, height: 24 }
+    };
+
+    const SCREENS = { START: 'start', SETTINGS: 'settings', GAME: 'game', FINAL: 'final' };
+    const GAME_STATES = { IDLE: 'idle', RUNNING: 'running', PAUSED: 'paused', ENDED: 'ended' };
+    const DEFAULT_CONFIG = { duration: 60, target: 20, difficulty: 'normal', playerSize: 'normal' };
+
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    const pauseOverlay = document.getElementById('pause-overlay');
+    const pauseButton = document.getElementById('pause-button');
+    const settingsForm = document.getElementById('settings-form');
+
+    let config = { ...DEFAULT_CONFIG };
+    let currentScreen = SCREENS.START;
+    let gameState = GAME_STATES.IDLE;
+    let player = null;
+    let items = [];
+    let goodCaught = 0;
+    let badCaught = 0;
+    let missedGood = 0;
+    let elapsedTime = 0;
+    let spawnTimer = 0;
+    let lastTimestamp = 0;
+    let animationFrameId = null;
+    const keys = { left: false, right: false };
+
+    function init() {
+      document.getElementById('play-button').addEventListener('click', startGame);
+      document.getElementById('settings-button').addEventListener('click', () => showScreen(SCREENS.SETTINGS));
+      document.getElementById('reset-settings-button').addEventListener('click', restoreDefaults);
+      document.getElementById('restart-button').addEventListener('click', restartGame);
+      document.getElementById('menu-button').addEventListener('click', returnToMenu);
+      document.getElementById('play-again-button').addEventListener('click', startGame);
+      document.getElementById('final-menu-button').addEventListener('click', returnToMenu);
+      pauseButton.addEventListener('click', togglePause);
+      settingsForm.addEventListener('submit', saveSettings);
+      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('keyup', handleKeyUp);
+      window.addEventListener('blur', clearMovementKeys);
+      document.getElementById('app').addEventListener('contextmenu', event => event.preventDefault());
+      render();
+    }
+
+    // Cambia entre las cuatro vistas de esta SPA sin recargar la página.
+    function showScreen(screenName) {
+      currentScreen = screenName;
+      document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+      document.getElementById(`${screenName}-screen`).classList.add('active');
+    }
+
+    function readFormConfig() {
+      const data = new FormData(settingsForm);
+      return {
+        duration: Number(data.get('duration')),
+        target: Number(data.get('target')),
+        difficulty: data.get('difficulty'),
+        playerSize: data.get('playerSize')
+      };
+    }
+
+    function applyConfigToForm() {
+      Object.entries(config).forEach(([name, value]) => {
+        const input = settingsForm.querySelector(`[name="${name}"][value="${value}"]`);
+        if (input) input.checked = true;
+      });
+    }
+
+    function saveSettings(event) {
+      event.preventDefault();
+      config = readFormConfig();
+      showScreen(SCREENS.START);
+    }
+
+    function restoreDefaults() {
+      config = { ...DEFAULT_CONFIG };
+      applyConfigToForm();
+    }
+
+    function startGame() {
+      cancelGameLoop();
+      const size = playerSizes[config.playerSize];
+      player = {
+        x: (GAME_WIDTH - size.width) / 2,
+        y: GAME_HEIGHT - 62,
+        width: size.width,
+        height: size.height,
+        vx: 0
+      };
+      items = [];
+      goodCaught = 0;
+      badCaught = 0;
+      missedGood = 0;
+      elapsedTime = 0;
+      spawnTimer = difficultySettings[config.difficulty].spawnInterval * 0.45;
+      lastTimestamp = 0;
+      clearMovementKeys();
+      gameState = GAME_STATES.RUNNING;
+      pauseOverlay.classList.remove('visible');
+      pauseButton.textContent = 'Pausa';
+      showScreen(SCREENS.GAME);
+      updateHud();
+      render();
+      animationFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    function restartGame() { startGame(); }
+
+    function returnToMenu() {
+      cancelGameLoop();
+      gameState = GAME_STATES.IDLE;
+      clearMovementKeys();
+      pauseOverlay.classList.remove('visible');
+      showScreen(SCREENS.START);
+    }
+
+    function cancelGameLoop() {
+      if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+
+    function gameLoop(timestamp) {
+      if (gameState !== GAME_STATES.RUNNING) return;
+      if (!lastTimestamp) lastTimestamp = timestamp;
+
+      // deltaTime está en segundos y se limita para evitar saltos tras bloquearse la pestaña.
+      const deltaTime = Math.min((timestamp - lastTimestamp) / 1000, MAX_DELTA_TIME);
+      lastTimestamp = timestamp;
+      update(deltaTime);
+      render();
+
+      if (gameState === GAME_STATES.RUNNING) animationFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    function update(deltaTime) {
+      elapsedTime = Math.min(config.duration, elapsedTime + deltaTime);
+      updatePlayer(deltaTime);
+      updateItems(deltaTime);
+
+      spawnTimer -= deltaTime;
+      if (spawnTimer <= 0) {
+        spawnItem();
+        spawnTimer += difficultySettings[config.difficulty].spawnInterval;
+      }
+
+      checkCollisions();
+      updateHud();
+
+      if (goodCaught >= config.target) endGame('target');
+      else if (elapsedTime >= config.duration) endGame('time');
+    }
+
+    function updatePlayer(deltaTime) {
+      const direction = Number(keys.right) - Number(keys.left);
+      player.vx = direction * PLAYER_SPEED;
+      player.x += player.vx * deltaTime;
+      player.x = Math.max(0, Math.min(GAME_WIDTH - player.width, player.x));
+    }
+
+    function spawnItem() {
+      const difficulty = difficultySettings[config.difficulty];
+      const radius = randomBetween(15, 23);
+      items.push({
+        x: randomBetween(radius + 5, GAME_WIDTH - radius - 5),
+        y: -radius,
+        radius,
+        speed: randomBetween(difficulty.minSpeed, difficulty.maxSpeed),
+        type: Math.random() < difficulty.badChance ? 'bad' : 'good'
+      });
+    }
+
+    function updateItems(deltaTime) {
+      for (const item of items) item.y += item.speed * deltaTime;
+      items = items.filter(item => {
+        if (item.y - item.radius > GAME_HEIGHT) {
+          if (item.type === 'good') missedGood += 1;
+          return false;
+        }
+        return true;
+      });
+    }
+
+    // Círculo contra rectángulo, con una caja 4 px más generosa para el jugador.
+    function circleIntersectsPlayer(circle) {
+      const margin = 4;
+      const left = player.x - margin;
+      const right = player.x + player.width + margin;
+      const top = player.y - margin;
+      const bottom = player.y + player.height + margin;
+      const closestX = Math.max(left, Math.min(circle.x, right));
+      const closestY = Math.max(top, Math.min(circle.y, bottom));
+      const dx = circle.x - closestX;
+      const dy = circle.y - closestY;
+      return dx * dx + dy * dy <= circle.radius * circle.radius;
+    }
+
+    function checkCollisions() {
+      items = items.filter(item => {
+        if (!circleIntersectsPlayer(item)) return true;
+        if (item.type === 'good') goodCaught += 1;
+        else badCaught += 1;
+        return false;
+      });
+    }
+
+    function togglePause() {
+      if (currentScreen !== SCREENS.GAME) return;
+
+      if (gameState === GAME_STATES.RUNNING) {
+        gameState = GAME_STATES.PAUSED;
+        cancelGameLoop();
+        clearMovementKeys();
+        pauseOverlay.classList.add('visible');
+        pauseButton.textContent = 'Continuar';
+      } else if (gameState === GAME_STATES.PAUSED) {
+        gameState = GAME_STATES.RUNNING;
+        lastTimestamp = 0;
+        pauseOverlay.classList.remove('visible');
+        pauseButton.textContent = 'Pausa';
+        animationFrameId = requestAnimationFrame(gameLoop);
+      }
+    }
+
+    function endGame(reason) {
+      if (gameState === GAME_STATES.ENDED) return;
+      gameState = GAME_STATES.ENDED;
+      cancelGameLoop();
+      clearMovementKeys();
+
+      document.getElementById('final-result').textContent = `${goodCaught} / ${config.target}`;
+      document.getElementById('final-good').textContent = goodCaught;
+      document.getElementById('final-bad').textContent = badCaught;
+      document.getElementById('final-target').textContent = config.target;
+      document.getElementById('final-time').textContent = formatTime(elapsedTime, false);
+
+      const ratio = goodCaught / config.target;
+      let message;
+      if (reason === 'target') message = '¡Excelente! Alcanzaste el objetivo.';
+      else if (ratio >= 0.75) message = '¡Muy bien! Estuviste muy cerca del objetivo.';
+      else if (ratio >= 0.4) message = '¡Buen trabajo! Cada intento ayuda a mejorar.';
+      else message = '¡Buen intento! Podés volver a jugar cuando quieras.';
+      document.getElementById('final-message').textContent = message;
+      showScreen(SCREENS.FINAL);
+    }
+
+    function updateHud() {
+      document.getElementById('good-count').textContent = goodCaught;
+      document.getElementById('target-count').textContent = config.target;
+      document.getElementById('bad-count').textContent = badCaught;
+      document.getElementById('time-left').textContent = formatTime(Math.max(0, config.duration - elapsedTime), true);
+      document.getElementById('difficulty-label').textContent = difficultySettings[config.difficulty].label;
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+      ctx.fillStyle = COLORS.background;
+      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+      drawGrid();
+      if (!player) return;
+
+      for (const item of items) {
+        ctx.beginPath();
+        ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+        ctx.fillStyle = item.type === 'good' ? COLORS.good : COLORS.bad;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = item.type === 'good' ? COLORS.goodEdge : COLORS.badEdge;
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = COLORS.player;
+      ctx.fillRect(player.x, player.y, player.width, player.height);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = COLORS.playerEdge;
+      ctx.strokeRect(player.x + 1.5, player.y + 1.5, player.width - 3, player.height - 3);
+    }
+
+    function drawGrid() {
+      ctx.strokeStyle = COLORS.grid;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = 60; x < GAME_WIDTH; x += 60) { ctx.moveTo(x, 0); ctx.lineTo(x, GAME_HEIGHT); }
+      for (let y = 60; y < GAME_HEIGHT; y += 60) { ctx.moveTo(0, y); ctx.lineTo(GAME_WIDTH, y); }
+      ctx.stroke();
+    }
+
+    function handleKeyDown(event) {
+      if (currentScreen !== SCREENS.GAME || gameState === GAME_STATES.ENDED) return;
+      if (event.code === 'ArrowLeft' || event.code === 'ArrowRight' || event.code === 'Space') event.preventDefault();
+      if (event.code === 'ArrowLeft') keys.left = true;
+      if (event.code === 'ArrowRight') keys.right = true;
+      if (event.code === 'Space' && !event.repeat) togglePause();
+    }
+
+    function handleKeyUp(event) {
+      if (currentScreen !== SCREENS.GAME) return;
+      if (event.code === 'ArrowLeft' || event.code === 'ArrowRight' || event.code === 'Space') event.preventDefault();
+      if (event.code === 'ArrowLeft') keys.left = false;
+      if (event.code === 'ArrowRight') keys.right = false;
+    }
+
+    function clearMovementKeys() { keys.left = false; keys.right = false; }
+    function randomBetween(min, max) { return min + Math.random() * (max - min); }
+
+    function formatTime(seconds, roundUp) {
+      const total = roundUp ? Math.ceil(seconds) : Math.floor(seconds);
+      const minutes = Math.floor(total / 60);
+      return `${minutes}:${String(total % 60).padStart(2, '0')}`;
+    }
+
+    // Interfaz de diagnóstico mínima para pruebas del prototipo; no interviene en el juego normal.
+    window.gameDebug = {
+      snapshot: () => ({ currentScreen, gameState, config: { ...config }, player: player ? { ...player } : null, items: items.map(item => ({ ...item })), goodCaught, badCaught, elapsedTime, missedGood }),
+      addItem: (type, x, y, radius = 18, speed = 0) => items.push({ type, x, y, radius, speed }),
+      setElapsedTime: seconds => { elapsedTime = Math.max(0, seconds); },
+      update: deltaTime => { if (gameState === GAME_STATES.RUNNING) update(deltaTime); },
+      render
+    };
+
+    init();
+  </script>
+</body>
+</html>
