@@ -351,9 +351,6 @@
     const RABBIT_FRAME_DURATION = 0.11;
     const RABBIT_VISUAL_WIDTH_FACTOR = 0.90;
     const RABBIT_BOTTOM_PADDING_RATIO = 16 / 304;
-    const GROUND_Y = 680;
-    const GROUND_HEIGHT = 22;
-    const STAR_COUNT = 72;
 
     const COLORS = {
       background: '#050b14',
@@ -391,7 +388,6 @@
     const spriteSources = {
       carrot: 'assets/carrot.png',
       rock: 'assets/rock.png',
-      surface: 'assets/surface.png',
       rabbitIdle: 'assets/rabbit_idle.png',
       rabbitIdleLeft: 'assets/rabbit_idle_left.png',
       rabbitRunRight: [
@@ -408,7 +404,6 @@
       ]
     };
     const sprites = {};
-    const stars = createStarField();
 
     const scoringRules = {
       easy: { rockPenalty: 0, missedCarrotPenalty: 0 },
@@ -610,7 +605,7 @@
     function updateItems(deltaTime) {
       for (const item of items) item.y += item.speed * deltaTime;
       items = items.filter(item => {
-        if (item.y + item.radius >= GROUND_Y) {
+        if (item.y - item.radius > GAME_HEIGHT) {
           if (item.type === 'good') {
             missedGood += 1;
             applyCarrotPenalty(scoringRules[config.difficulty].missedCarrotPenalty);
@@ -696,62 +691,20 @@
 
     function render() {
       ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-      ctx.fillStyle = '#000000';
+      const backgroundGradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+      backgroundGradient.addColorStop(0, COLORS.background);
+      backgroundGradient.addColorStop(1, COLORS.backgroundBottom);
+      ctx.fillStyle = backgroundGradient;
       ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-      drawStarField();
-
-      if (player) {
-        for (const item of items) {
-          if (item.type === 'good') drawCarrot(item);
-          else drawRock(item);
-        }
-      }
-
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, GROUND_Y + GROUND_HEIGHT, GAME_WIDTH, GAME_HEIGHT - GROUND_Y - GROUND_HEIGHT);
-      drawGround();
+      drawGrid();
       if (!player) return;
 
+      for (const item of items) {
+        if (item.type === 'good') drawCarrot(item);
+        else drawRock(item);
+      }
+
       drawPlayerRabbit(player);
-    }
-
-    function createStarField() {
-      return Array.from({ length: STAR_COUNT }, () => {
-        const sizeRoll = Math.random();
-        const size = sizeRoll < 0.66 ? 1 : sizeRoll < 0.94 ? 2 : 3;
-        return {
-          x: Math.floor(Math.random() * (GAME_WIDTH - size + 1)),
-          y: Math.floor(Math.random() * (GROUND_Y - size)),
-          size
-        };
-      });
-    }
-
-    function drawStarField() {
-      ctx.save();
-      ctx.fillStyle = '#f5f7ff';
-      for (const star of stars) {
-        ctx.fillRect(star.x, star.y, star.size, star.size);
-      }
-      ctx.restore();
-    }
-
-    function drawGround() {
-      const image = sprites.surface;
-
-      ctx.save();
-      ctx.imageSmoothingEnabled = false;
-      if (image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
-        for (let x = 0; x < GAME_WIDTH; x += image.naturalWidth) {
-          ctx.drawImage(image, x, GROUND_Y);
-        }
-      } else {
-        ctx.fillStyle = '#123d25';
-        ctx.fillRect(0, GROUND_Y, GAME_WIDTH, GROUND_HEIGHT);
-        ctx.fillStyle = '#68d05f';
-        ctx.fillRect(0, GROUND_Y, GAME_WIDTH, 4);
-      }
-      ctx.restore();
     }
 
     function drawPlayerRabbit(player) {

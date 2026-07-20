@@ -610,7 +610,7 @@
     function updateItems(deltaTime) {
       for (const item of items) item.y += item.speed * deltaTime;
       items = items.filter(item => {
-        if (item.y + item.radius >= GROUND_Y) {
+        if (item.y - item.radius > GAME_HEIGHT) {
           if (item.type === 'good') {
             missedGood += 1;
             applyCarrotPenalty(scoringRules[config.difficulty].missedCarrotPenalty);
@@ -699,18 +699,15 @@
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
       drawStarField();
-
-      if (player) {
-        for (const item of items) {
-          if (item.type === 'good') drawCarrot(item);
-          else drawRock(item);
-        }
-      }
-
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, GROUND_Y + GROUND_HEIGHT, GAME_WIDTH, GAME_HEIGHT - GROUND_Y - GROUND_HEIGHT);
       drawGround();
       if (!player) return;
+
+      for (const item of items) {
+        if (item.type === 'good') drawCarrot(item);
+        else drawRock(item);
+      }
 
       drawPlayerRabbit(player);
     }
