@@ -252,7 +252,7 @@
     <section class="screen active" id="start-screen" aria-labelledby="game-title">
       <div class="card">
         <h1 id="game-title">Atrapa y Esquiva</h1>
-        <p class="lead">Usá las flechas izquierda y derecha para atrapar los círculos verdes y evitar los rojos.</p>
+        <p class="lead">Usá las flechas izquierda y derecha para atrapar zanahorias y evitar rocas.</p>
         <div class="button-stack">
           <button id="play-button" type="button">Jugar</button>
           <button id="settings-button" class="secondary" type="button">Configuración</button>
@@ -266,19 +266,11 @@
         <form id="settings-form">
           <div class="settings-grid">
             <fieldset>
-              <legend>Duración</legend>
-              <div class="choices">
-                <label class="choice"><input type="radio" name="duration" value="60" checked>1 minuto</label>
-                <label class="choice"><input type="radio" name="duration" value="180">3 minutos</label>
-                <label class="choice"><input type="radio" name="duration" value="300">5 minutos</label>
-              </div>
-            </fieldset>
-            <fieldset>
               <legend>Objetivo</legend>
               <div class="choices">
-                <label class="choice"><input type="radio" name="target" value="10">10 verdes</label>
-                <label class="choice"><input type="radio" name="target" value="20" checked>20 verdes</label>
-                <label class="choice"><input type="radio" name="target" value="30">30 verdes</label>
+                <label class="choice"><input type="radio" name="target" value="10">10 zanahorias</label>
+                <label class="choice"><input type="radio" name="target" value="20" checked>20 zanahorias</label>
+                <label class="choice"><input type="radio" name="target" value="30">30 zanahorias</label>
               </div>
             </fieldset>
             <fieldset>
@@ -310,10 +302,10 @@
       <aside class="hud" aria-label="Información de la partida">
         <h2>Atrapa y Esquiva</h2>
         <div class="stats">
-          <div class="stat"><span>Verdes</span><strong id="good-count">0</strong></div>
+          <div class="stat"><span>Zanahorias</span><strong id="good-count">0</strong></div>
           <div class="stat"><span>Objetivo</span><strong id="target-count">20</strong></div>
-          <div class="stat"><span>Rojos</span><strong id="bad-count">0</strong></div>
-          <div class="stat"><span>Tiempo</span><strong id="time-left">1:00</strong></div>
+          <div class="stat"><span>Rocas</span><strong id="bad-count">0</strong></div>
+          <div class="stat"><span>Tiempo</span><strong id="time-left">0:00</strong></div>
           <div class="stat"><span>Dificultad</span><strong id="difficulty-label">Normal</strong></div>
         </div>
         <div class="hud-buttons">
@@ -321,7 +313,7 @@
           <button id="restart-button" class="secondary" type="button">Reiniciar</button>
           <button id="menu-button" class="secondary" type="button">Volver al menú</button>
         </div>
-        <p class="controls-note">Mové el rectángulo con ← y →.<br>Espacio: pausa.</p>
+        <p class="controls-note">Mové la canasta con ← y →.<br>Espacio: pausa.</p>
       </aside>
       <div class="canvas-wrap" id="game-area">
         <canvas id="game-canvas" width="540" height="720" aria-label="Área de juego"></canvas>
@@ -331,11 +323,11 @@
 
     <section class="screen" id="final-screen" aria-labelledby="final-title">
       <div class="card">
-        <h2 id="final-title">Partida terminada</h2>
+        <h2 id="final-title">Resultado final</h2>
         <div class="result-number" id="final-result">0 / 20</div>
         <div class="result-grid">
-          <div><span>Verdes atrapados</span><strong id="final-good">0</strong></div>
-          <div><span>Rojos atrapados</span><strong id="final-bad">0</strong></div>
+          <div><span>Zanahorias atrapadas</span><strong id="final-good">0</strong></div>
+          <div><span>Rocas atrapadas</span><strong id="final-bad">0</strong></div>
           <div><span>Objetivo</span><strong id="final-target">20</strong></div>
           <div><span>Tiempo jugado</span><strong id="final-time">0:00</strong></div>
         </div>
@@ -388,7 +380,19 @@
 
     const SCREENS = { START: 'start', SETTINGS: 'settings', GAME: 'game', FINAL: 'final' };
     const GAME_STATES = { IDLE: 'idle', RUNNING: 'running', PAUSED: 'paused', ENDED: 'ended' };
-    const DEFAULT_CONFIG = { duration: 60, target: 20, difficulty: 'normal', playerSize: 'normal' };
+    const DEFAULT_CONFIG = { target: 20, difficulty: 'normal', playerSize: 'normal' };
+
+    const spriteSources = {
+      carrot: 'assets/carrot.png',
+      rock: 'assets/rock.png'
+    };
+    const sprites = {};
+
+    const scoringRules = {
+      easy: { rockPenalty: 0, missedCarrotPenalty: 0 },
+      normal: { rockPenalty: 1, missedCarrotPenalty: 0 },
+      hard: { rockPenalty: 2, missedCarrotPenalty: 1 }
+    };
 
     const canvas = document.getElementById('game-canvas');
     const ctx = canvas.getContext('2d');
@@ -411,6 +415,7 @@
     const keys = { left: false, right: false };
 
     function init() {
+      loadSprites();
       document.getElementById('play-button').addEventListener('click', startGame);
       document.getElementById('settings-button').addEventListener('click', () => showScreen(SCREENS.SETTINGS));
       document.getElementById('reset-settings-button').addEventListener('click', restoreDefaults);
@@ -427,6 +432,15 @@
       render();
     }
 
+    function loadSprites() {
+      for (const [name, source] of Object.entries(spriteSources)) {
+        const image = new Image();
+        sprites[name] = image;
+        image.addEventListener('load', render, { once: true });
+        image.src = source;
+      }
+    }
+
     // Cambia entre las cuatro vistas de esta SPA sin recargar la página.
     function showScreen(screenName) {
       currentScreen = screenName;
@@ -437,7 +451,6 @@
     function readFormConfig() {
       const data = new FormData(settingsForm);
       return {
-        duration: Number(data.get('duration')),
         target: Number(data.get('target')),
         difficulty: data.get('difficulty'),
         playerSize: data.get('playerSize')
@@ -518,7 +531,7 @@
     }
 
     function update(deltaTime) {
-      elapsedTime = Math.min(config.duration, elapsedTime + deltaTime);
+      elapsedTime += deltaTime;
       updatePlayer(deltaTime);
       updateItems(deltaTime);
 
@@ -531,8 +544,7 @@
       checkCollisions();
       updateHud();
 
-      if (goodCaught >= config.target) endGame('target');
-      else if (elapsedTime >= config.duration) endGame('time');
+      if (goodCaught >= config.target) endGame();
     }
 
     function updatePlayer(deltaTime) {
@@ -558,14 +570,17 @@
       for (const item of items) item.y += item.speed * deltaTime;
       items = items.filter(item => {
         if (item.y - item.radius > GAME_HEIGHT) {
-          if (item.type === 'good') missedGood += 1;
+          if (item.type === 'good') {
+            missedGood += 1;
+            applyCarrotPenalty(scoringRules[config.difficulty].missedCarrotPenalty);
+          }
           return false;
         }
         return true;
       });
     }
 
-    // Círculo contra rectángulo, con una caja 4 px más generosa para el jugador.
+    // Colisión de cada objeto con la canasta, usando una caja 4 px más generosa.
     function circleIntersectsPlayer(circle) {
       const margin = 4;
       const left = player.x - margin;
@@ -582,10 +597,18 @@
     function checkCollisions() {
       items = items.filter(item => {
         if (!circleIntersectsPlayer(item)) return true;
-        if (item.type === 'good') goodCaught += 1;
-        else badCaught += 1;
+        if (item.type === 'good') {
+          goodCaught += 1;
+        } else {
+          badCaught += 1;
+          applyCarrotPenalty(scoringRules[config.difficulty].rockPenalty);
+        }
         return false;
       });
+    }
+
+    function applyCarrotPenalty(penalty) {
+      goodCaught = Math.max(0, goodCaught - penalty);
     }
 
     function togglePause() {
@@ -606,7 +629,7 @@
       }
     }
 
-    function endGame(reason) {
+    function endGame() {
       if (gameState === GAME_STATES.ENDED) return;
       gameState = GAME_STATES.ENDED;
       cancelGameLoop();
@@ -618,13 +641,7 @@
       document.getElementById('final-target').textContent = config.target;
       document.getElementById('final-time').textContent = formatTime(elapsedTime, false);
 
-      const ratio = goodCaught / config.target;
-      let message;
-      if (reason === 'target') message = '¡Excelente! Alcanzaste el objetivo.';
-      else if (ratio >= 0.75) message = '¡Muy bien! Estuviste muy cerca del objetivo.';
-      else if (ratio >= 0.4) message = '¡Buen trabajo! Cada intento ayuda a mejorar.';
-      else message = '¡Buen intento! Podés volver a jugar cuando quieras.';
-      document.getElementById('final-message').textContent = message;
+      document.getElementById('final-message').textContent = '¡Excelente! Alcanzaste el objetivo.';
       showScreen(SCREENS.FINAL);
     }
 
@@ -632,7 +649,7 @@
       document.getElementById('good-count').textContent = goodCaught;
       document.getElementById('target-count').textContent = config.target;
       document.getElementById('bad-count').textContent = badCaught;
-      document.getElementById('time-left').textContent = formatTime(Math.max(0, config.duration - elapsedTime), true);
+      document.getElementById('time-left').textContent = formatTime(elapsedTime, false);
       document.getElementById('difficulty-label').textContent = difficultySettings[config.difficulty].label;
     }
 
@@ -699,6 +716,33 @@
     }
 
     function drawCarrot(item) {
+      if (!drawItemSprite(sprites.carrot, item, item.radius * 2.2)) {
+        drawCarrotFallback(item);
+      }
+    }
+
+    function drawRock(item) {
+      if (!drawItemSprite(sprites.rock, item, item.radius * 1.55)) {
+        drawRockFallback(item);
+      }
+    }
+
+    function drawItemSprite(image, item, visualHeight) {
+      if (!image || !image.complete || image.naturalWidth === 0 || image.naturalHeight === 0) return false;
+
+      const height = Math.round(visualHeight);
+      const width = Math.round(height * image.naturalWidth / image.naturalHeight);
+      const left = Math.round(item.x - width / 2);
+      const top = Math.round(item.y - height / 2);
+
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(image, left, top, width, height);
+      ctx.restore();
+      return true;
+    }
+
+    function drawCarrotFallback(item) {
       const { x, y, radius } = item;
 
       ctx.save();
@@ -746,7 +790,7 @@
       ctx.restore();
     }
 
-    function drawRock(item) {
+    function drawRockFallback(item) {
       const { x, y, radius } = item;
 
       ctx.save();
