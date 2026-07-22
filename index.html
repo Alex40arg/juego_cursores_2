@@ -140,6 +140,7 @@
       height: auto;
       margin: 0 auto;
       object-fit: contain;
+      transform: translateY(-100px);      
     }
 
     .start-banner-fallback {
@@ -165,34 +166,41 @@
       background: #4fbd5c;
       color: #031407;
       box-shadow: 0 0 0 rgba(79, 189, 92, 0);
+      transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
       animation: play-button-breathe 2s ease-in-out infinite;
     }
 
     #play-button:hover {
       background: #6bd675;
+      border-color: #8be592;
       box-shadow: 0 0 24px rgba(79, 189, 92, 0.48);
-      animation-play-state: paused;
-      transform: scale(1.03);
+      animation: none;
     }
 
     #play-button:active {
-      animation-play-state: paused;
-      transform: scale(0.99);
+      background: #47ae53;
+      border-color: #68d572;
+      box-shadow: 0 0 12px rgba(79, 189, 92, 0.34);
+      animation: none;
     }
 
     #play-button:focus-visible {
-      animation-play-state: paused;
+      background: #4fbd5c;
+      border-color: #75dc7d;
       box-shadow: 0 0 0 4px rgba(255, 209, 102, 0.25), 0 0 24px rgba(79, 189, 92, 0.42);
+      animation: none;
     }
 
     @keyframes play-button-breathe {
       0%, 100% {
-        transform: scale(1);
+        background: #4fbd5c;
+        border-color: #75dc7d;
         box-shadow: 0 0 0 rgba(79, 189, 92, 0);
       }
       50% {
-        transform: scale(1.025);
-        box-shadow: 0 0 22px rgba(79, 189, 92, 0.42);
+        background: #3f9f4a;
+        border-color: #5fcf69;
+        box-shadow: 0 0 18px rgba(79, 189, 92, 0.34);
       }
     }
 
@@ -697,7 +705,7 @@
       musicFadeFrames[name] = null;
     }
 
-    function fadeOutMusic(name, duration = 1200, reset = false) {
+    function fadeOutMusic(name, duration = 1800, reset = false) {
       const track = music[name];
       cancelMusicFade(name);
 
