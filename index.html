@@ -235,9 +235,29 @@
     .settings-actions { display: flex; justify-content: center; gap: 12px; }
 
     #game-screen.active {
+      position: relative;
+      isolation: isolate;
       grid-template-columns: 250px minmax(0, min(690px, calc(75vh - clamp(12px, 2.25vh, 24px))));
       justify-content: center;
       gap: clamp(10px, 1.5vw, 18px);
+    }
+
+    .marquee-overlay {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      pointer-events: none;
+      z-index: 0;
+      transform: scale(1.06);
+      transform-origin: center center;
+    }
+
+    #game-screen > .hud,
+    #game-screen > .canvas-wrap {
+      position: relative;
+      z-index: 1;
     }
 
     .hud {
@@ -346,6 +366,7 @@
         <div class="button-stack start-actions">
           <button id="play-button" type="button">Jugar</button>
           <button id="settings-button" class="secondary" type="button">Configuración</button>
+          <button class="secondary" type="button" data-audio-toggle aria-pressed="true">Sonido: Sí</button>
         </div>
       </div>
     </section>
@@ -389,6 +410,7 @@
     </section>
 
     <section class="screen" id="game-screen" aria-label="Partida">
+      <img class="marquee-overlay" src="assets/marquee.png" alt="" aria-hidden="true">
       <aside class="hud" aria-label="Información de la partida">
         <h2>Atrapa y Esquiva</h2>
         <div class="stats">
@@ -400,6 +422,7 @@
         </div>
         <div class="hud-buttons">
           <button id="pause-button" type="button">Pausa</button>
+          <button class="secondary" type="button" data-audio-toggle aria-pressed="true">Sonido: Sí</button>
           <button id="restart-button" class="secondary" type="button">Reiniciar</button>
           <button id="menu-button" class="secondary" type="button">Volver al menú</button>
         </div>
@@ -478,6 +501,14 @@
     const GAME_STATES = { IDLE: 'idle', RUNNING: 'running', PAUSED: 'paused', ENDED: 'ended' };
     const DEFAULT_CONFIG = { target: 20, difficulty: 'normal', playerSize: 'normal' };
 
+    const MUSIC_VOLUME = 0.25;
+    const SFX_VOLUME = 0.35;
+    const music = {
+      title: new Audio('music/music_title.mp3'),
+      game: new Audio('music/music_game.mp3')
+    };
+    const musicAvailable = { title: true, game: true };
+
     const spriteSources = {
       carrot: 'assets/carrot.png',
       rock: 'assets/rock.png',
@@ -527,10 +558,13 @@
     let playerFacing = 'right';
     let playerAnimTime = 0;
     let playerAnimFrame = 0;
+    let audioEnabled = true;
+    let audioContext = null;
     const keys = { left: false, right: false };
 
     function init() {
       loadSprites();
+      configureAudio();
       document.getElementById('play-button').addEventListener('click', startGame);
       document.getElementById('settings-button').addEventListener('click', () => showScreen(SCREENS.SETTINGS));
       document.getElementById('reset-settings-button').addEventListener('click', restoreDefaults);
@@ -538,13 +572,119 @@
       document.getElementById('menu-button').addEventListener('click', returnToMenu);
       document.getElementById('play-again-button').addEventListener('click', startGame);
       document.getElementById('final-menu-button').addEventListener('click', returnToMenu);
+      document.querySelectorAll('[data-audio-toggle]').forEach(button => button.addEventListener('click', toggleAudio));
       pauseButton.addEventListener('click', togglePause);
       settingsForm.addEventListener('submit', saveSettings);
       window.addEventListener('keydown', handleKeyDown);
       window.addEventListener('keyup', handleKeyUp);
       window.addEventListener('blur', clearMovementKeys);
       document.getElementById('app').addEventListener('contextmenu', event => event.preventDefault());
+      document.getElementById('app').addEventListener('click', unlockAudioFromInteraction, { once: true });
       render();
+    }
+
+    function configureAudio() {
+      Object.entries(music).forEach(([name, track]) => {
+        track.loop = true;
+        track.volume = MUSIC_VOLUME;
+        track.preload = 'auto';
+        track.addEventListener('error', () => { musicAvailable[name] = false; });
+      });
+      updateAudioButtons();
+    }
+
+    function initAudio() {
+      if (!audioEnabled || audioContext) return audioContext;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return null;
+      try {
+        audioContext = new AudioContextClass();
+      } catch (error) {
+        audioContext = null;
+      }
+      return audioContext;
+    }
+
+    function resumeAudio() {
+      const context = initAudio();
+      if (context && context.state === 'suspended') context.resume().catch(() => {});
+      return context;
+    }
+
+    function unlockAudioFromInteraction() {
+      if (!audioEnabled) return;
+      resumeAudio();
+      if (currentScreen === SCREENS.GAME && gameState === GAME_STATES.RUNNING) playMusic('game');
+      else if (currentScreen === SCREENS.START || currentScreen === SCREENS.SETTINGS) playMusic('title');
+    }
+
+    function playMusic(name) {
+      if (!audioEnabled || !musicAvailable[name]) return;
+      const playRequest = music[name].play();
+      if (playRequest && typeof playRequest.catch === 'function') playRequest.catch(() => {});
+    }
+
+    function pauseMusic(name, reset = false) {
+      const track = music[name];
+      track.pause();
+      if (reset) {
+        try { track.currentTime = 0; } catch (error) {}
+      }
+    }
+
+    function playTone(type, startTime, startFrequency, endFrequency, duration, peakVolume) {
+      const context = audioContext;
+      if (!audioEnabled || !context || context.state !== 'running') return;
+      try {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        const endTime = startTime + duration;
+        oscillator.type = type;
+        oscillator.frequency.setValueAtTime(startFrequency, startTime);
+        oscillator.frequency.linearRampToValueAtTime(endFrequency, endTime);
+        gain.gain.setValueAtTime(0.0001, startTime);
+        gain.gain.exponentialRampToValueAtTime(peakVolume, startTime + 0.018);
+        gain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(startTime);
+        oscillator.stop(endTime + 0.01);
+      } catch (error) {}
+    }
+
+    function playCarrotSfx() {
+      const context = resumeAudio();
+      if (!context || context.state !== 'running') return;
+      const now = context.currentTime;
+      const peak = SFX_VOLUME * 0.22;
+      playTone('sine', now, 440, 520, 0.10, peak);
+      playTone('sine', now + 0.11, 560, 680, 0.12, peak);
+    }
+
+    function playRockSfx() {
+      const context = resumeAudio();
+      if (!context || context.state !== 'running') return;
+      playTone('triangle', context.currentTime, 180, 135, 0.16, SFX_VOLUME * 0.20);
+    }
+
+    function toggleAudio() {
+      audioEnabled = !audioEnabled;
+      updateAudioButtons();
+      if (!audioEnabled) {
+        pauseMusic('title');
+        pauseMusic('game');
+        return;
+      }
+      resumeAudio();
+      if (currentScreen === SCREENS.GAME && gameState === GAME_STATES.RUNNING) playMusic('game');
+      else if (currentScreen === SCREENS.START || currentScreen === SCREENS.SETTINGS) playMusic('title');
+    }
+
+    function updateAudioButtons() {
+      document.querySelectorAll('[data-audio-toggle]').forEach(button => {
+        button.textContent = `Sonido: ${audioEnabled ? 'Sí' : 'No'}`;
+        button.setAttribute('aria-pressed', String(audioEnabled));
+      });
     }
 
     function loadSprites() {
@@ -596,6 +736,10 @@
 
     function startGame() {
       cancelGameLoop();
+      resumeAudio();
+      pauseMusic('title', true);
+      pauseMusic('game', true);
+      playMusic('game');
       const size = playerSizes[config.playerSize];
       player = {
         x: (GAME_WIDTH - size.width) / 2,
@@ -628,6 +772,8 @@
 
     function returnToMenu() {
       cancelGameLoop();
+      pauseMusic('game', true);
+      playMusic('title');
       gameState = GAME_STATES.IDLE;
       clearMovementKeys();
       pauseOverlay.classList.remove('visible');
@@ -730,9 +876,11 @@
         if (!circleIntersectsPlayer(item)) return true;
         if (item.type === 'good') {
           goodCaught += 1;
+          playCarrotSfx();
         } else {
           badCaught += 1;
           applyCarrotPenalty(scoringRules[config.difficulty].rockPenalty);
+          playRockSfx();
         }
         return false;
       });
@@ -751,11 +899,13 @@
         clearMovementKeys();
         pauseOverlay.classList.add('visible');
         pauseButton.textContent = 'Continuar';
+        pauseMusic('game');
       } else if (gameState === GAME_STATES.PAUSED) {
         gameState = GAME_STATES.RUNNING;
         lastTimestamp = 0;
         pauseOverlay.classList.remove('visible');
         pauseButton.textContent = 'Pausa';
+        playMusic('game');
         animationFrameId = requestAnimationFrame(gameLoop);
       }
     }
@@ -764,6 +914,7 @@
       if (gameState === GAME_STATES.ENDED) return;
       gameState = GAME_STATES.ENDED;
       cancelGameLoop();
+      pauseMusic('game', true);
       clearMovementKeys();
 
       document.getElementById('final-result').textContent = `${goodCaught} / ${config.target}`;
