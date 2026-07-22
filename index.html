@@ -232,6 +232,23 @@
 
     .choice input { position: absolute; opacity: 0; pointer-events: none; }
     .choice:has(input:checked) { border-color: var(--accent); background: #163e66; color: #fff; }
+    .audio-controls { display: grid; gap: 12px; }
+    .volume-control { display: grid; gap: 5px; }
+    .volume-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      font-weight: 700;
+    }
+    .volume-heading output { color: var(--accent); font-size: 1.05rem; }
+    .volume-control input[type="range"] {
+      width: 100%;
+      min-height: 34px;
+      margin: 0;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
     .settings-actions { display: flex; justify-content: center; gap: 12px; }
 
     #game-screen.active {
@@ -341,6 +358,9 @@
       .settings-grid { gap: 8px 14px; margin: 8px 0 12px; }
       fieldset { padding: 7px 10px 9px; }
       .choice { min-height: 38px; padding: 4px; }
+      .audio-controls { gap: 5px; }
+      .volume-control { gap: 1px; }
+      .volume-control input[type="range"] { min-height: 28px; }
       .lead { margin-bottom: 16px; }
       .hud { padding: 10px; }
       .hud h2 { margin-bottom: 7px; }
@@ -398,6 +418,25 @@
                 <label class="choice"><input type="radio" name="playerSize" value="large">Grande</label>
                 <label class="choice"><input type="radio" name="playerSize" value="normal" checked>Normal</label>
                 <label class="choice"><input type="radio" name="playerSize" value="small">Chico</label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Audio</legend>
+              <div class="audio-controls">
+                <div class="volume-control">
+                  <div class="volume-heading">
+                    <label for="music-volume">Música</label>
+                    <output id="music-volume-output" for="music-volume">20%</output>
+                  </div>
+                  <input id="music-volume" name="musicVolume" type="range" min="0" max="100" value="20">
+                </div>
+                <div class="volume-control">
+                  <div class="volume-heading">
+                    <label for="sfx-volume">Efectos</label>
+                    <output id="sfx-volume-output" for="sfx-volume">60%</output>
+                  </div>
+                  <input id="sfx-volume" name="sfxVolume" type="range" min="0" max="100" value="60">
+                </div>
               </div>
             </fieldset>
           </div>
@@ -499,10 +538,14 @@
 
     const SCREENS = { START: 'start', SETTINGS: 'settings', GAME: 'game', FINAL: 'final' };
     const GAME_STATES = { IDLE: 'idle', RUNNING: 'running', PAUSED: 'paused', ENDED: 'ended' };
-    const DEFAULT_CONFIG = { target: 20, difficulty: 'normal', playerSize: 'normal' };
+    const DEFAULT_CONFIG = {
+      target: 20,
+      difficulty: 'normal',
+      playerSize: 'normal',
+      musicVolume: 20,
+      sfxVolume: 60
+    };
 
-    const MUSIC_VOLUME = 0.25;
-    const SFX_VOLUME = 0.35;
     const music = {
       title: new Audio('music/music_title.mp3'),
       game: new Audio('music/music_game.mp3')
@@ -573,6 +616,7 @@
       document.getElementById('play-again-button').addEventListener('click', startGame);
       document.getElementById('final-menu-button').addEventListener('click', returnToMenu);
       document.querySelectorAll('[data-audio-toggle]').forEach(button => button.addEventListener('click', toggleAudio));
+      settingsForm.querySelectorAll('input[type="range"]').forEach(input => input.addEventListener('input', handleAudioVolumeInput));
       pauseButton.addEventListener('click', togglePause);
       settingsForm.addEventListener('submit', saveSettings);
       window.addEventListener('keydown', handleKeyDown);
@@ -580,17 +624,27 @@
       window.addEventListener('blur', clearMovementKeys);
       document.getElementById('app').addEventListener('contextmenu', event => event.preventDefault());
       document.getElementById('app').addEventListener('click', unlockAudioFromInteraction, { once: true });
+      applyConfigToForm();
       render();
     }
 
     function configureAudio() {
       Object.entries(music).forEach(([name, track]) => {
         track.loop = true;
-        track.volume = MUSIC_VOLUME;
         track.preload = 'auto';
         track.addEventListener('error', () => { musicAvailable[name] = false; });
       });
+      applyAudioVolumes();
       updateAudioButtons();
+    }
+
+    function getMusicVolume() { return config.musicVolume / 100; }
+    function getSfxVolume() { return config.sfxVolume / 100; }
+
+    function applyAudioVolumes() {
+      const volume = getMusicVolume();
+      music.title.volume = volume;
+      music.game.volume = volume;
     }
 
     function initAudio() {
@@ -620,6 +674,7 @@
 
     function playMusic(name) {
       if (!audioEnabled || !musicAvailable[name]) return;
+      applyAudioVolumes();
       const playRequest = music[name].play();
       if (playRequest && typeof playRequest.catch === 'function') playRequest.catch(() => {});
     }
@@ -634,7 +689,7 @@
 
     function playTone(type, startTime, startFrequency, endFrequency, duration, peakVolume) {
       const context = audioContext;
-      if (!audioEnabled || !context || context.state !== 'running') return;
+      if (!audioEnabled || !context || context.state !== 'running' || peakVolume <= 0) return;
       try {
         const oscillator = context.createOscillator();
         const gain = context.createGain();
@@ -656,7 +711,7 @@
       const context = resumeAudio();
       if (!context || context.state !== 'running') return;
       const now = context.currentTime;
-      const peak = SFX_VOLUME * 0.22;
+      const peak = getSfxVolume() * 0.22;
       playTone('sine', now, 440, 520, 0.10, peak);
       playTone('sine', now + 0.11, 560, 680, 0.12, peak);
     }
@@ -664,7 +719,7 @@
     function playRockSfx() {
       const context = resumeAudio();
       if (!context || context.state !== 'running') return;
-      playTone('triangle', context.currentTime, 180, 135, 0.16, SFX_VOLUME * 0.20);
+      playTone('triangle', context.currentTime, 180, 135, 0.16, getSfxVolume() * 0.20);
     }
 
     function toggleAudio() {
@@ -712,26 +767,48 @@
       return {
         target: Number(data.get('target')),
         difficulty: data.get('difficulty'),
-        playerSize: data.get('playerSize')
+        playerSize: data.get('playerSize'),
+        musicVolume: Number(data.get('musicVolume')),
+        sfxVolume: Number(data.get('sfxVolume'))
       };
     }
 
     function applyConfigToForm() {
       Object.entries(config).forEach(([name, value]) => {
-        const input = settingsForm.querySelector(`[name="${name}"][value="${value}"]`);
-        if (input) input.checked = true;
+        const input = settingsForm.querySelector(`[name="${name}"]`);
+        if (!input) return;
+        if (input.type === 'range') input.value = value;
+        else {
+          const option = settingsForm.querySelector(`[name="${name}"][value="${value}"]`);
+          if (option) option.checked = true;
+        }
       });
+      updateVolumeDisplays();
+    }
+
+    function handleAudioVolumeInput() {
+      config.musicVolume = Number(document.getElementById('music-volume').value);
+      config.sfxVolume = Number(document.getElementById('sfx-volume').value);
+      updateVolumeDisplays();
+      applyAudioVolumes();
+    }
+
+    function updateVolumeDisplays() {
+      document.getElementById('music-volume-output').textContent = `${config.musicVolume}%`;
+      document.getElementById('sfx-volume-output').textContent = `${config.sfxVolume}%`;
     }
 
     function saveSettings(event) {
       event.preventDefault();
       config = readFormConfig();
+      applyAudioVolumes();
       showScreen(SCREENS.START);
     }
 
     function restoreDefaults() {
       config = { ...DEFAULT_CONFIG };
       applyConfigToForm();
+      applyAudioVolumes();
     }
 
     function startGame() {
