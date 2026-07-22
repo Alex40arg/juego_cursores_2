@@ -551,6 +551,7 @@
       game: new Audio('music/music_game.mp3')
     };
     const musicAvailable = { title: true, game: true };
+    const musicFadeFrames = { title: null, game: null };
 
     const spriteSources = {
       carrot: 'assets/carrot.png',
@@ -673,6 +674,7 @@
     }
 
     function playMusic(name) {
+      cancelMusicFade(name);
       if (!audioEnabled || !musicAvailable[name]) return;
       applyAudioVolumes();
       const playRequest = music[name].play();
@@ -681,10 +683,55 @@
 
     function pauseMusic(name, reset = false) {
       const track = music[name];
+      cancelMusicFade(name);
       track.pause();
       if (reset) {
         try { track.currentTime = 0; } catch (error) {}
       }
+      track.volume = getMusicVolume();
+    }
+
+    function cancelMusicFade(name) {
+      if (musicFadeFrames[name] === null) return;
+      cancelAnimationFrame(musicFadeFrames[name]);
+      musicFadeFrames[name] = null;
+    }
+
+    function fadeOutMusic(name, duration = 1200, reset = false) {
+      const track = music[name];
+      cancelMusicFade(name);
+
+      if (track.paused || track.volume <= 0 || duration <= 0) {
+        track.pause();
+        if (reset) {
+          try { track.currentTime = 0; } catch (error) {}
+        }
+        track.volume = getMusicVolume();
+        return;
+      }
+
+      const startVolume = track.volume;
+      let startTime = null;
+
+      function fadeStep(timestamp) {
+        if (startTime === null) startTime = timestamp;
+        const progress = Math.min((timestamp - startTime) / duration, 1);
+        track.volume = startVolume * (1 - progress);
+
+        if (progress < 1) {
+          musicFadeFrames[name] = requestAnimationFrame(fadeStep);
+          return;
+        }
+
+        musicFadeFrames[name] = null;
+        track.pause();
+        if (reset) {
+          try { track.currentTime = 0; } catch (error) {}
+        }
+        track.volume = getMusicVolume();
+      }
+
+      musicFadeFrames[name] = requestAnimationFrame(fadeStep);
     }
 
     function playTone(type, startTime, startFrequency, endFrequency, duration, peakVolume) {
@@ -991,7 +1038,7 @@
       if (gameState === GAME_STATES.ENDED) return;
       gameState = GAME_STATES.ENDED;
       cancelGameLoop();
-      pauseMusic('game', true);
+      fadeOutMusic('game', 1200, true);
       clearMovementKeys();
 
       document.getElementById('final-result').textContent = `${goodCaught} / ${config.target}`;
