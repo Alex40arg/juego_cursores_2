@@ -1046,7 +1046,7 @@
       if (gameState === GAME_STATES.ENDED) return;
       gameState = GAME_STATES.ENDED;
       cancelGameLoop();
-      fadeOutMusic('game', 1200, true);
+      fadeOutMusic('game', 1800, true);
       clearMovementKeys();
 
       document.getElementById('final-result').textContent = `${goodCaught} / ${config.target}`;
